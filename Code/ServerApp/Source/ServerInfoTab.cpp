@@ -14,34 +14,19 @@ bool			gbShowServerConfig		= false;
 constexpr char	kNetImguiURL[]			= "https://github.com/sammyfreg/netImgui";
 
 // Client Config Layout
+constexpr char	kColName_Status[]		= "Status";
 constexpr char	kColName_Name[]			= "Name";
 constexpr char	kColName_HostName[]		= "HostName (IP)";
 constexpr char	kColName_HostPort[]		= "Port";
 constexpr char	kColName_AutoConnect[]	= "Auto";
-constexpr float kColWidth_Port			= 50;
-constexpr float kColWidth_AutoConnect	= 50;
-constexpr float kColWidth_Edit			= 70;
-constexpr float kColWidth_Connect		= 100;
-constexpr float kColWidth_FixedConfig	= kColWidth_Port + kColWidth_AutoConnect + kColWidth_Edit + kColWidth_Connect;
+constexpr char	kColName_Remove[]		= "Remove";
+constexpr char	kColName_Config[]		= "Config";
 
 // Client Connected Layout
 constexpr char	kColName_Duration[]		= "Time";
 constexpr char	kColName_ImguiVer[]		= "ImGui";
 constexpr char	kColName_NetImguiVer[]	= "netImgui";
-constexpr float kColWidth_ImGui			= 70;
-constexpr float kColWidth_Duration		= kColWidth_AutoConnect + kColWidth_Edit;
-constexpr float kColWidth_Disconnect	= kColWidth_Connect;
-constexpr float kColWidth_FixedConnect	= kColWidth_Port + kColWidth_Duration + 2*kColWidth_ImGui + kColWidth_Disconnect;
-
-//=================================================================================================
-// Helper function that assign all columns width at once, from an initializer list
-void SetupColumns(const char* columnName, bool useBorder, std::initializer_list<float> columnWidths)
-//=================================================================================================
-{
-	ImGui::Columns(static_cast<int>(columnWidths.size()), columnName, useBorder);
-	for(int i(0); i<static_cast<int>(columnWidths.size()); ++i)
-		ImGui::SetColumnWidth(i, columnWidths.begin()[i]);
-}
+constexpr char	kColName_Action[]		= "Action";
 
 //=================================================================================================
 // Edit the Server configuration
@@ -192,84 +177,70 @@ void ServerInfoTab_DrawClient_SectionConfig_PopupDelete(uint32_t& ClientId)
 void ServerInfoTab_DrawClients_SectionConnected()
 //=================================================================================================
 {
-	ImGui::NewLine();	
+	ImGui::NewLine();
 
 	int connectedCount(0);
 	for (uint32_t i(1); i < ClientRemote::GetCountMax(); ++i)
 		connectedCount += ClientRemote::Get(i).mbIsConnected ? 1 : 0;
 
-	if( ImGui::CollapsingHeader("Connected", ImGuiTreeNodeFlags_DefaultOpen) )
-	{		
-		float widthAdjust = std::max<float>(50.f, ImGui::GetContentRegionAvailWidth() - kColWidth_FixedConnect);
-		ImVec2 neededSize = ImVec2(0, ImGui::GetFrameHeightWithSpacing() * (std::max<int>(1,connectedCount) + 2));
-		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(1.0f, 1.0f, 1.0f, 0.1f));
-		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1);
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0,0));
-		ImGui::BeginChildFrame(ImGui::GetID("ListConnected"), neededSize, 0);		
-		ImGui::PopStyleVar();
+	if (ImGui::CollapsingHeader("Connected", ImGuiTreeNodeFlags_DefaultOpen))
+	{
+		//---------------------------------------------------------------------
+		if (ImGui::BeginTable("ListConnectedHeader", 7, ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingPolicyStretchX | ImGuiTableFlags_BordersH))
 		{
-			//---------------------------------------------------------------------
-			// List Header		
-			ImGui::BeginChildFrame(ImGui::GetID("ListConnectHeader"), ImVec2(0, ImGui::GetFrameHeightWithSpacing()), ImGuiWindowFlags_NoScrollbar);
-			{
-				SetupColumns("ListConnectHeader", false, { widthAdjust*2.f/3.f, widthAdjust*1.f/3.f, kColWidth_ImGui, kColWidth_ImGui, kColWidth_Port, kColWidth_Duration, kColWidth_Disconnect });
-				ImGui::TextUnformatted(kColName_Name); 			ImGui::NextColumn();
-				ImGui::TextUnformatted(kColName_HostName);		ImGui::NextColumn();
-				ImGui::TextUnformatted(kColName_ImguiVer);		ImGui::NextColumn();
-				ImGui::TextUnformatted(kColName_NetImguiVer);	ImGui::NextColumn();
-				ImGui::TextUnformatted(kColName_HostPort);		ImGui::NextColumn();				
-				ImGui::TextUnformatted(kColName_Duration);		ImGui::NextColumn();
-				ImGui::EndChildFrame();
-			}
+			ImGui::TableSetupColumn(kColName_Name);
+			ImGui::TableSetupColumn(kColName_HostName);
+			ImGui::TableSetupColumn(kColName_ImguiVer);
+			ImGui::TableSetupColumn(kColName_NetImguiVer);
+			ImGui::TableSetupColumn(kColName_HostPort);
+			ImGui::TableSetupColumn(kColName_Duration);
+			ImGui::TableSetupColumn(kColName_Action);
+			ImGui::TableHeadersRow();
 
-			//---------------------------------------------------------------------
-			// List Content (skipping 1st element, because it's the ServerTab)
-			SetupColumns("ListConnectContent", false, { widthAdjust*2.f/3.f, widthAdjust*1.f/3.f, kColWidth_ImGui, kColWidth_ImGui, kColWidth_Port, kColWidth_Duration, kColWidth_Disconnect });
 			for (uint32_t i(1); i < ClientRemote::GetCountMax(); ++i)
 			{
+				ImGui::PushID(i);
 				ClientRemote& client = ClientRemote::Get(i);
-				if( client.mbIsConnected )
+				if (client.mbIsConnected)
 				{
-					ImGui::PushID(i);
-					auto elapsedTime	= std::chrono::steady_clock::now() - client.mConnectedTime;
-					int tmSec			= static_cast<int>(std::chrono::duration_cast<std::chrono::seconds>(elapsedTime).count() % 60);
-					int tmMin			= static_cast<int>(std::chrono::duration_cast<std::chrono::minutes>(elapsedTime).count() % 60);
-					int tmHour			= static_cast<int>(std::chrono::duration_cast<std::chrono::hours>(elapsedTime).count());					
+					ImGui::TableNextRow();
+					ImGui::TableSetColumnIndex(0);
+					auto elapsedTime = std::chrono::steady_clock::now() - client.mConnectedTime;
+					int tmSec = static_cast<int>(std::chrono::duration_cast<std::chrono::seconds>(elapsedTime).count() % 60);
+					int tmMin = static_cast<int>(std::chrono::duration_cast<std::chrono::minutes>(elapsedTime).count() % 60);
+					int tmHour = static_cast<int>(std::chrono::duration_cast<std::chrono::hours>(elapsedTime).count());
+					if (client.mClientConfigID == ClientConfig::kInvalidRuntimeID)
 					{
-						if (client.mClientConfigID == ClientConfig::kInvalidRuntimeID) {
-							ImGui::TextUnformatted("(No Config)"); ImGui::SameLine();
-						}
-						ImGui::TextUnformatted(client.mInfoName); 
-					}ImGui::NextColumn();
+						ImGui::TextUnformatted("(No Config)");
+						ImGui::SameLine();
+					}
+					ImGui::TextUnformatted(client.mInfoName);				ImGui::TableNextColumn();
+					ImGui::TextUnformatted(client.mConnectHost);			ImGui::TableNextColumn();
+					ImGui::TextUnformatted(client.mInfoImguiVerName);		ImGui::TableNextColumn();
+					ImGui::TextUnformatted(client.mInfoNetImguiVerName);	ImGui::TableNextColumn();
+					ImGui::Text("%5i", client.mConnectPort);				ImGui::TableNextColumn();
+					ImGui::Text("%03ih%02i:%02i", tmHour, tmMin, tmSec);	ImGui::TableNextColumn();
 
-					ImGui::TextUnformatted(client.mConnectHost);			ImGui::NextColumn();					
-					ImGui::TextUnformatted(client.mInfoImguiVerName);		ImGui::NextColumn();
-					ImGui::TextUnformatted(client.mInfoNetImguiVerName);	ImGui::NextColumn();
-					ImGui::Text("%5i", client.mConnectPort);				ImGui::NextColumn();
-					ImGui::Text("%03ih%02i:%02i", tmHour,tmMin,tmSec);		ImGui::NextColumn();
-			
-					if( !client.mbPendingDisconnect && ImGui::Button("Disconnect", ImVec2(80, 0)) ){
+					if (!client.mbPendingDisconnect && ImGui::Button("Disconnect", ImVec2(80, 0))) {
 						client.mbPendingDisconnect = true;
-					}ImGui::NextColumn();
-
-					ImGui::PopID();
+					}
 				}
+				ImGui::PopID();
 			}
-			if( connectedCount == 0 )
-			{
-				ImGui::Columns(1);
-				ImGui::TextUnformatted("No netImgui Client connected for the moment.");
-			}
+			ImGui::EndTable();
 		}
-		ImGui::EndChildFrame();
-		
-		ImGui::TextUnformatted("Note: "); ImGui::SameLine();
-		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.75f,0.75f,0.75f,1.f));
-		ImGui::PushTextWrapPos( ImGui::GetWindowContentRegionWidth() > 400 ? 0.f : 400.f ); 
+
+		if (connectedCount == 0)
+			ImGui::TextUnformatted("No netImgui Client connected for the moment.");
+		ImGui::NewLine();
+
+		ImGui::TextUnformatted("Note:");
+		ImGui::PushTextWrapPos(ImGui::GetWindowContentRegionWidth() > 400 ? 0.f : 400.f);
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.75f, 0.75f, 0.75f, 1.f));
 		ImGui::TextUnformatted("Connections can either be initiated from this 'netImgui Server' (using 'Configurations' below) or a 'netImgui Client' can attempt reaching this server directly.");
+		ImGui::PopStyleColor(1);
 		ImGui::PopTextWrapPos();
-		ImGui::PopStyleColor(2);
-		ImGui::PopStyleVar(1);
+
 		ImGui::NewLine();
 		ImGui::NewLine();
 	}
@@ -287,88 +258,79 @@ void ServerInfoTab_DrawClients_SectionConfig()
 	ServerInfoTab_DrawClient_SectionConfig_PopupDelete(sPendingDeleteID);
 
 	// Display list of Client Configuration	
-	if( ImGui::CollapsingHeader("Configurations", ImGuiTreeNodeFlags_DefaultOpen) )
-	{		
+	if (ImGui::CollapsingHeader("Configurations", ImGuiTreeNodeFlags_DefaultOpen))
+	{
 		ClientConfig clientConfig;
-		float widthAdjust = std::max<float>(50.f, ImGui::GetContentRegionAvailWidth() - kColWidth_FixedConfig) / 2.f;
-		ImVec2 neededSize = ImVec2(0, ImGui::GetFrameHeightWithSpacing() * (ClientConfig::GetConfigCount() + 2));
-		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(1.0f, 1.0f, 1.0f, 0.1f));		
-		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1);
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0,0));
-		ImGui::BeginChildFrame(ImGui::GetID("ListConfig"), neededSize, 0);		
-		ImGui::PopStyleVar();
+		//---------------------------------------------------------------------
+		if (ImGui::BeginTable("ListConfigContent", 8, ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingPolicyStretchX | ImGuiTableFlags_BordersH))
 		{
-			//---------------------------------------------------------------------
-			// List Header		
-			ImGui::BeginChildFrame(ImGui::GetID("ListConfigHeader"), ImVec2(0, ImGui::GetFrameHeightWithSpacing()), ImGuiWindowFlags_NoScrollbar);			
-			{				
-				SetupColumns("ListConfigHeader", false, {widthAdjust, widthAdjust, kColWidth_Port, kColWidth_AutoConnect, kColWidth_Edit, kColWidth_Connect});
-				ImGui::TextUnformatted(kColName_Name); 			ImGui::NextColumn();
-				ImGui::TextUnformatted(kColName_HostName);		ImGui::NextColumn();
-				ImGui::TextUnformatted(kColName_HostPort);		ImGui::NextColumn();
-				ImGui::TextUnformatted(kColName_AutoConnect);	ImGui::NextColumn();				
-				if (ImGui::Button("+") && !spPendingEditCfg) { spPendingEditCfg = new ClientConfig; } ImGui::NextColumn();				
-				ImGui::EndChildFrame();
-			}
+			ImGui::TableSetupColumn(kColName_Status);
+			ImGui::TableSetupColumn(kColName_Name);
+			ImGui::TableSetupColumn(kColName_HostName);
+			ImGui::TableSetupColumn(kColName_HostPort);
+			ImGui::TableSetupColumn(kColName_AutoConnect);
+			ImGui::TableSetupColumn(kColName_Remove);
+			ImGui::TableSetupColumn(kColName_Config);
+			ImGui::TableSetupColumn(kColName_Action);
+			ImGui::TableHeadersRow();
 
-			//---------------------------------------------------------------------
-			// List Content			
-			SetupColumns("ListConfigContent", false, {widthAdjust, widthAdjust, kColWidth_Port, kColWidth_AutoConnect, kColWidth_Edit, kColWidth_Connect});
 			for (int i = 0; ClientConfig::GetConfigByIndex(i, clientConfig); ++i)
 			{
 				ImGui::PushID(i);
-				
-				// Config: Status and Name
-				{
-					ImGui::PushStyleColor(ImGuiCol_CheckMark, clientConfig.Connected ? ImVec4(0.7f, 1.f, 0.25f, 1.f) : ImVec4(1.f, 0.35f, 0.35f, 1.f));
-					ImGui::RadioButton("##Connected", true);				
-					ImGui::PopStyleColor();
-					ImGui::SameLine(); 
-					ImGui::TextUnformatted(clientConfig.ClientName); 
-				}ImGui::NextColumn();
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
+				// Config: Status
+				ImGui::PushStyleColor(ImGuiCol_Text, clientConfig.Connected ? ImVec4(0.7f, 1.f, 0.25f, 1.f) : ImVec4(1.f, 0.35f, 0.35f, 1.f));
+				ImGui::TextUnformatted(clientConfig.Connected ? "[ON]" : "[OFF]");	ImGui::TableNextColumn();
+				ImGui::PopStyleColor();
+				// Config: Name
+				ImGui::TextUnformatted(clientConfig.ClientName);					ImGui::TableNextColumn();
 
 				// Config: Host info IP/Port
-				ImGui::TextUnformatted(clientConfig.HostName);	ImGui::NextColumn();
-				ImGui::Text("%5i", clientConfig.HostPort);		ImGui::NextColumn();
+				ImGui::TextUnformatted(clientConfig.HostName);	ImGui::TableNextColumn();
+				ImGui::Text("%5i", clientConfig.HostPort);		ImGui::TableNextColumn();
 
 				// Config: AutoConnect changed				
-				if( !clientConfig.Transient && ImGui::Checkbox("##auto", &clientConfig.ConnectAuto)) {
+				if (!clientConfig.Transient && ImGui::Checkbox("##auto", &clientConfig.ConnectAuto)) {
 					ClientConfig::SetProperty_ConnectAuto(clientConfig.RuntimeID, clientConfig.ConnectAuto);
 					ClientConfig::SaveAll();
-				}ImGui::NextColumn();
-				
+				}
+				ImGui::TableNextColumn();
+
 				// Config: Remove client
-				{
-					if (ImGui::Button("-"))
-						sPendingDeleteID = clientConfig.RuntimeID;
-				
-					if( !clientConfig.Transient ) {
-						ImGui::SameLine(); 
-						if ( ImGui::Button("..."))
-						{
-							spPendingEditCfg	= new ClientConfig;
-							*spPendingEditCfg	= clientConfig;
-						}
+				if (ImGui::Button("-"))
+					sPendingDeleteID = clientConfig.RuntimeID;
+				ImGui::TableNextColumn();
+
+				// Config: Config button
+				if (!clientConfig.Transient) {
+					if (ImGui::Button("Config"))
+					{
+						spPendingEditCfg = new ClientConfig;
+						*spPendingEditCfg = clientConfig;
 					}
-				}ImGui::NextColumn();
+				}
+				ImGui::TableNextColumn();
 
 				// Config: Connection attempt
-				{
-					if( clientConfig.Transient ){
-						ImGui::TextUnformatted("(Request)");
-					}
-					else if (!clientConfig.Connected && !clientConfig.ConnectRequest && ImGui::Button("Connect", ImVec2(80,0 )) ){
-						ClientConfig::SetProperty_ConnectRequest(clientConfig.RuntimeID, true);
-					}
-				}ImGui::NextColumn();
+				if (clientConfig.ConnectRequest)
+					ImGui::TextUnformatted("(Connecting)");
+				else if (clientConfig.Connected)
+					ImGui::TextUnformatted("(Connected)");
+				else if (ImGui::Button("Connect", ImVec2(80, 0)))
+					ClientConfig::SetProperty_ConnectRequest(clientConfig.RuntimeID, true);
 
 				ImGui::PopID();
 			}
-			ImGui::Columns(1);
+
+			// "Add a new entry" row
+			ImGui::TableNextRow();
+			ImGui::TableSetColumnIndex(ImGui::TableGetColumnCount() - 1);
+			if (ImGui::Button("+") && !spPendingEditCfg)
+				spPendingEditCfg = new ClientConfig;
+
+			ImGui::EndTable();
 		}
-		ImGui::EndChildFrame();
-		ImGui::PopStyleColor(1);
-		ImGui::PopStyleVar(1);
 	}
 }
 
@@ -429,22 +391,18 @@ void ServerInfoTab_Draw()
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(3,3+6) );		
 		if( ImGui::BeginMainMenuBar() )
 		{
-			ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.8, 0.8, 0.8, 0.9));
-			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(3,3) );
-			ImGui::SetCursorPosY(6);
-			ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, gShowAbout ? 1.f : 0.f);
-			gShowAbout			^= ImGui::Button(" About ");
-			
-			ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, gbShowServerConfig ? 1.f : 0.f);
-			gbShowServerConfig	^= ImGui::Button("  ...  ");
+			if(ImGui::BeginMenu("Help"))
+			{
+				gShowAbout = ImGui::MenuItem("About");
+				gbShowServerConfig = ImGui::MenuItem("Config");
+				ImGui::EndMenu();
+			}
 
-			ImGui::SetCursorPosY(0);
+			ImGui::Separator();
 			if( NetworkServer::IsWaitingForConnection() )
 				ImGui::Text("Waiting Connections on port: %i", static_cast<int>(ClientConfig::ServerPort));
 			else
 				ImGui::Text("Unable to wait Connections on port: %i", static_cast<int>(ClientConfig::ServerPort));
-			ImGui::PopStyleColor();
-			ImGui::PopStyleVar(3);
 			ImGui::EndMainMenuBar();			
 		}
 		ImGui::PopStyleVar(1);
